@@ -1,0 +1,223 @@
+// Personal Finance App — Prisma schema
+//
+// NOTE: Provider is SQLite for zero-credential local dev. SQLite via Prisma does
+// NOT support native `enum` types or `@db.Decimal(p,s)`. So:
+//   - All "enum" fields are plain `String` columns; allowed values live in
+//     src/lib/enums.ts (single source of truth, validated in app code).
+//   - `Decimal` is used (supported on SQLite) without `@db.Decimal` attributes.
+//
+// Upgrade path to Postgres/Neon: switch `provider` to "postgresql", point
+// DATABASE_URL at Neon, restore enum blocks + @db.Decimal, then re-migrate.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id             String          @id @default(cuid())
+  email          String          @unique
+  name           String
+  createdAt      DateTime        @default(now())
+  accounts       Account[]
+  transactions   Transaction[]
+  goals          Goal[]
+  businesses     Business[]
+  budgets        Budget[]
+  liabilities    Liability[]
+  importMappings ImportMapping[]
+}
+
+model ImportMapping {
+  id             String   @id @default(cuid())
+  userId         String
+  user           User     @relation(fields: [userId], references: [id])
+  name           String
+  headerKey      String   // normalized fingerprint of sorted lowercase headers
+  headers        String   // JSON array of original header strings (for display)
+  dateCol        String?  // column name (not index) for portability
+  descriptionCol String?
+  amountCol      String?
+  debitCol       String?
+  creditCol      String?
+  invert         Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([userId, headerKey])
+  @@index([userId])
+}
+
+model Account {
+  id           String        @id @default(cuid())
+  userId       String
+  user         User          @relation(fields: [userId], references: [id])
+  name         String
+  institution  String?
+  type         String // AccountType (see enums.ts)
+  balance      Decimal
+  currency     String        @default("USD")
+  isActive     Boolean       @default(true)
+  notes        String?
+  lastUpdated  DateTime      @updatedAt
+  createdAt    DateTime      @default(now())
+  transactions Transaction[]
+  holdings     Holding[]
+
+  @@index([userId])
+}
+
+model Transaction {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  accountId   String
+  account     Account  @relation(fields: [accountId], references: [id])
+  date        DateTime
+  amount      Decimal
+  description String
+  category    String // TransactionCategory (see enums.ts)
+  entity      String   @default("PERSONAL") // Entity (see enums.ts)
+  isIncome    Boolean  @default(false)
+  notes       String?
+  createdAt   DateTime @default(now())
+
+  @@index([userId, date])
+  @@index([accountId])
+}
+
+model Liability {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  name      String
+  type      String // LiabilityType (see enums.ts)
+  balance   Decimal
+  notes     String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+}
+
+model Holding {
+  id           String   @id @default(cuid())
+  accountId    String
+  account      Account  @relation(fields: [accountId], references: [id])
+  symbol       String
+  name         String
+  assetClass   String   @default("STOCK") // AssetClass (see enums.ts)
+  shares       Decimal
+  costBasis    Decimal
+  currentPrice Decimal
+  lastUpdated  DateTime @updatedAt
+  createdAt    DateTime @default(now())
+
+  @@index([accountId])
+}
+
+model Goal {
+  id            String    @id @default(cuid())
+  userId        String
+  user          User      @relation(fields: [userId], references: [id])
+  type          String // GoalType (see enums.ts)
+  name          String
+  targetAmount  Decimal
+  currentAmount Decimal   @default(0)
+  targetDate    DateTime?
+  monthlyTarget Decimal?
+  notes         String?
+  isActive      Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+model Business {
+  id            String    @id @default(cuid())
+  userId        String
+  user          User      @relation(fields: [userId], references: [id])
+  name          String
+  entityType    String // BusinessEntity (see enums.ts)
+  ein           String?
+  state         String
+  monthlyTarget Decimal?
+  notes         String?
+  createdAt     DateTime  @default(now())
+  plEntries     PLEntry[]
+}
+
+model PLEntry {
+  id         String   @id @default(cuid())
+  businessId String
+  business   Business @relation(fields: [businessId], references: [id])
+  month      DateTime
+  revenue    Decimal  @default(0)
+  expenses   Decimal  @default(0)
+  netIncome  Decimal  @default(0)
+  notes      String?
+  createdAt  DateTime @default(now())
+}
+
+model Budget {
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id])
+  category      String // TransactionCategory (see enums.ts)
+  monthlyTarget Decimal
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([userId, category])
+}
+
+model IRADistribution {
+  id             String   @id @default(cuid())
+  userId         String
+  year           Int
+  recommendedAmt Decimal
+  takenAmt       Decimal  @default(0)
+  taxEstimate    Decimal
+  netToTOD       Decimal
+  notes          String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([userId, year])
+}
+
+model NetWorthSnapshot {
+  id          String   @id @default(cuid())
+  userId      String
+  date        DateTime
+  totalAssets Decimal
+  totalLiab   Decimal
+  netWorth    Decimal
+  createdAt   DateTime @default(now())
+
+  @@index([userId, date])
+}
+
+model TaxEstimate {
+  id               String   @id @default(cuid())
+  userId           String
+  year             Int
+  w2Income         Decimal  @default(0)
+  businessIncome   Decimal  @default(0)
+  k1Income         Decimal  @default(0)
+  iraDistributions Decimal  @default(0)
+  deductions       Decimal  @default(0)
+  taxableIncome    Decimal  @default(0)
+  estimatedTax     Decimal  @default(0)
+  qtrPaid          Decimal  @default(0)
+  qtrOwed          Decimal  @default(0)
+  updatedAt        DateTime @updatedAt
+  createdAt        DateTime @default(now())
+
+  @@unique([userId, year])
+}

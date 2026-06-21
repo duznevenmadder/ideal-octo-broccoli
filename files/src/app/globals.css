@@ -1,0 +1,48 @@
+@import "tailwindcss";
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+  }
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+/* Print: drop app chrome and force a clean light report. */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  :root {
+    --background: #ffffff;
+    --foreground: #000000;
+  }
+  body {
+    background: #ffffff;
+    color: #000000;
+  }
+  .report-page {
+    max-width: 100% !important;
+    padding: 0 !important;
+  }
+  .page-break {
+    break-before: page;
+  }
+}
